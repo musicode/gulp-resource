@@ -1,6 +1,6 @@
 {
   "name": "gulp-resource",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "a static resource processor",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "event-stream": "^3.3.1",
-    "amd-deploy": "^1.0.9"
+    "amd-deploy": "^1.0.10"
   }
 }
