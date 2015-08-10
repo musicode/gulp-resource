@@ -571,8 +571,6 @@ Resource.prototype = {
 
         var me = this;
 
-        var replace = options.rename;
-
         return es.map(function (file, callback) {
 
             var dependencies = [ ];
@@ -604,7 +602,7 @@ Resource.prototype = {
                                 return;
                             }
 
-                            var resourceId = resolveResourceId(resource.id, module.id);
+                            var resourceId = resolveResourceId(resource.id, module.id, config);
 
                             dependencies.push({
                                 raw: resource.id,
@@ -632,13 +630,17 @@ Resource.prototype = {
                 options.process(file, dependencies);
             }
 
-            if (replace) {
+            if (options.rename) {
 
                 config.replaceRequireResource = function (raw, absolute) {
-                    return replace({
-                        raw: raw,
-                        absolute: absolute
-                    });
+                    return options.rename(
+                        {
+                            raw: raw,
+                            absolute: absolute
+                        },
+                        me.hashMap,
+                        me.dependencyMap
+                    );
                 };
 
                 replaceResources(
@@ -728,7 +730,7 @@ Resource.prototype = {
 
                 if (options.customReplace) {
                     var srcContent = file.contents.toString();
-                    var destContent = options.customReplace(srcContent);
+                    var destContent = options.customReplace(srcContent, file.path);
                     if (destContent && destContent !== srcContent) {
                         file.contents = new Buffer(destContent);
                     }
@@ -742,10 +744,25 @@ Resource.prototype = {
             },
             rename: function (dependency) {
 
-                return me.renameDependency(
+                var prefix = './';
+
+                // "./a.js" 重命名为 "./a_123.js"
+                // 但是 path.join('.', 'a.js') 会变成 a.js
+
+                if (dependency.raw.indexOf(prefix) !== 0) {
+                    prefix = '';
+                }
+
+                var dependencyPath = me.renameDependency(
                     dependency,
                     getRecursiveHash(dependency.absolute, hashMap, dependencyMap)
                 );
+
+                if (prefix && dependencyPath.indexOf(prefix) !== 0) {
+                    dependencyPath = prefix + dependencyPath;
+                }
+
+                return dependencyPath;
 
             }
         });
@@ -861,7 +878,7 @@ Resource.prototype = {
         return filePathToResourceId(
             filePath,
             this.getAmdConfig(filePath)
-        );
+        )[0];
     }
 
 };
