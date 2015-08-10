@@ -381,21 +381,6 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
 
             var hash = hashMap[dependency];
 
-            if (!hash && path.extname(dependency) !== '.html') {
-
-                if (path.relative(
-                        '/Users/zhujl/github/www-fe/asset',
-                        dependency
-                    ).indexOf('..') < 0
-                ) {
-                    console.log(
-                        '[hash not found]' + dependency,
-                        Object.keys(hashMap).length
-                    );
-                }
-
-            }
-
             return hash || '';
 
         }
