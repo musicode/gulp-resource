@@ -177,8 +177,8 @@ function walkDependencies(file, rules) {
     var map = { };
 
     var addDependency = function (dependency) {
-        if (!map[dependency.raw]) {
-            map[dependency.raw] = 1;
+        if (!map[dependency.text]) {
+            map[dependency.text] = 1;
             list.push(dependency);
         }
     };
@@ -799,7 +799,11 @@ Resource.prototype = {
             resources = factory();
         }
         catch (e) {
-            console.error('[INFO][amd id parse error]' + match);
+
+            console.log('[INFO][amd id parse error]');
+            console.log(match);
+            console.log('');
+
             resources = literal;
         }
 
