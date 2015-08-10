@@ -1,6 +1,6 @@
 {
   "name": "gulp-resource",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "a static resource processor",
   "main": "index.js",
   "scripts": {

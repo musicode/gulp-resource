@@ -722,8 +722,6 @@ Resource.prototype = {
     replaceFileDependencies: function (options) {
 
         var me = this;
-        var hashMap = me.hashMap;
-        var dependencyMap = me.dependencyMap;
 
         return me[options.type + 'Dependencies']({
             process: function (file, dependencies) {
@@ -735,11 +733,6 @@ Resource.prototype = {
                         file.contents = new Buffer(destContent);
                     }
                 }
-
-                file.path = me.renameFile(
-                    file,
-                    getRecursiveHash(file.path, hashMap, dependencyMap)
-                );
 
             },
             rename: function (dependency) {
@@ -755,7 +748,11 @@ Resource.prototype = {
 
                 var dependencyPath = me.renameDependency(
                     dependency,
-                    getRecursiveHash(dependency.absolute, hashMap, dependencyMap)
+                    getRecursiveHash(
+                        dependency.absolute,
+                        me.hashMap,
+                        me.dependencyMap
+                    )
                 );
 
                 if (prefix && dependencyPath.indexOf(prefix) !== 0) {
@@ -765,6 +762,31 @@ Resource.prototype = {
                 return dependencyPath;
 
             }
+        });
+
+    },
+
+    /**
+     * 生成文件名带有哈希值的文件
+     */
+    renameFiles: function () {
+
+        var me = this;
+
+        return es.map(function (file, callback) {
+
+            var hash = getRecursiveHash(
+                file.path,
+                me.hashMap,
+                me.dependencyMap
+            );
+
+            if (hash) {
+                file.path = me.renameFile(file, hash);
+            }
+
+            callback(null, file);
+
         });
 
     },
