@@ -343,6 +343,9 @@ function renameDependencies(file, dependencies, rename) {
 
 }
 
+
+var recursiveHashCache = { };
+
 /**
  * 获取递归计算的 md5
  *
@@ -353,6 +356,10 @@ function renameDependencies(file, dependencies, rename) {
  * @return {string}
  */
 function getRecursiveHash(dependency, hashMap, dependencyMap) {
+
+    if (recursiveHashCache[ dependency ]) {
+        return recursiveHashCache[ dependency ];
+    }
 
     // 递归分析出的完整的依赖列表
     var dependencies = [ ];
@@ -376,18 +383,36 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
 
     addDependency(dependency);
 
-    var hash = dependencies.map(
+    var list = [ ];
+
+    dependencies.forEach(
         function (dependency) {
 
             var hash = hashMap[dependency];
-
-            return hash || '';
+            if (hash) {
+                list.push(hash);
+            }
 
         }
     )
-    .join('');
 
-    return hash ? md5(new Buffer(hash)) : '';
+    var hash;
+
+    switch (list.length) {
+        case 0:
+            hash = '';
+            break;
+        case 1:
+            hash = list[0];
+            break;
+        default:
+            hash = md5(new Buffer(list.join('')));
+            break;
+    }
+
+    recursiveHashCache[ dependency ] = hash;
+
+    return hash;
 
 }
 
@@ -426,7 +451,7 @@ Resource.prototype = {
     /**
      * 自定义处理
      *
-     * @param {Function} handler
+     * @param {Function} handler(file, callback)
      */
     custom: function (handler) {
         return es.map(function (file, callback) {
@@ -617,6 +642,8 @@ Resource.prototype = {
 
             if (options.rename) {
 
+                var replaceRequireResource = config.replaceRequireResource;
+
                 config.replaceRequireResource = function (raw, absolute) {
                     return options.rename(
                         {
@@ -632,6 +659,8 @@ Resource.prototype = {
                     fileInfo,
                     config
                 );
+
+                config.replaceRequireResource = replaceRequireResource;
 
                 file.contents = new Buffer(
                     generateFileCode(fileInfo)
@@ -683,10 +712,10 @@ Resource.prototype = {
 
         var me = this;
 
-        return me[options.type + 'Dependencies']({
+        return me[ options.type + 'Dependencies' ]({
             process: function (file, dependencies) {
 
-                me.dependencyMap[file.path] = dependencies.map(
+                me.dependencyMap[ file.path ] = dependencies.map(
                     function (dependency) {
                         return dependency.absolute;
                     }
@@ -708,12 +737,12 @@ Resource.prototype = {
 
         var me = this;
 
-        return me[options.type + 'Dependencies']({
+        return me[ options.type + 'Dependencies' ]({
             process: function (file, dependencies) {
 
                 if (options.customReplace) {
                     var srcContent = file.contents.toString();
-                    var destContent = options.customReplace(srcContent, file.path);
+                    var destContent = options.customReplace(srcContent, file);
                     if (destContent && destContent !== srcContent) {
                         file.contents = new Buffer(destContent);
                     }
@@ -760,19 +789,37 @@ Resource.prototype = {
 
         return es.map(function (file, callback) {
 
-            var hash = getRecursiveHash(
-                file.path,
-                me.hashMap,
-                me.dependencyMap
-            );
+            var hashFilePath = me.getHashFilePath(file);
 
-            if (hash) {
-                file.path = me.renameFile(file, hash);
+            if (hashFilePath) {
+                file.path = hashFilePath;
             }
 
             callback(null, file);
 
         });
+
+    },
+
+    /**
+     * 获得哈希后的文件路径
+     *
+     * @param {Object} file
+     * @return {string}
+     */
+    getHashFilePath: function (file) {
+
+        var me = this;
+
+        var hash = getRecursiveHash(
+            file.path,
+            me.hashMap,
+            me.dependencyMap
+        );
+
+        if (hash) {
+            return me.renameFile(file, hash);
+        }
 
     },
 
