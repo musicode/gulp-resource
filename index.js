@@ -129,9 +129,27 @@ function cleanQuery(url) {
  */
 function replaceByPattern(content, pattern, replacement) {
     return content.replace(
-        util.createPattern(pattern, 'g'),
+        createPattern(pattern, 'g'),
         replacement
     );
+}
+
+/**
+ * 创建一个正则表达式
+ *
+ * @inner
+ * @param {string} pattern
+ * @param {string} decorate
+ * @return {RegExp}
+ */
+function createPattern(pattern, decorate) {
+
+    pattern = pattern.replace(/(\{|\}|\(|\)|\[|\]|\$|\.|\/|\?)/g, '\\$1');
+
+    return decorate
+         ? new RegExp(pattern)
+         : new RegExp(pattern, decorate);
+
 }
 
 /**
