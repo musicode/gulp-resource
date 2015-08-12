@@ -604,11 +604,14 @@ Resource.prototype = {
                             }
 
                             var resourceId = resolveResourceId(resource.id, module.id);
+                            var filePath = resourceIdToFilePath(resourceId, config);
 
-                            dependencies.push({
-                                raw: resource.id,
-                                absolute: resourceIdToFilePath(resourceId, config)
-                            });
+                            if (filePath) {
+                                dependencies.push({
+                                    raw: resource.id,
+                                    absolute: filePath
+                                });
+                            }
 
                         });
 
@@ -830,7 +833,6 @@ Resource.prototype = {
                 callback: function (code) {
 
                     file.contents = new Buffer(code);
-
                     callback(null, file);
 
                 }
