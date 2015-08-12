@@ -166,13 +166,22 @@ function walkDependencies(file, rules) {
     var content = file.contents.toString();
 
     var list = [ ];
-    var map = { };
 
+    // 这里不用判断是否已添加
+    // 比如同一个文件出现下面两句
+    //
+    // require(
+    //     [ 'common/a' ]
+    // );
+    //
+    // require(
+    //     [ 'common/a', 'common/b' ]
+    // );
+    //
+    // common/a 无需判断是否存在，因为它出现在不同的匹配块中
+    //
     var addDependency = function (dependency) {
-        if (!map[dependency.raw]) {
-            map[dependency.raw] = 1;
-            list.push(dependency);
-        }
+        list.push(dependency);
     };
 
     rules.forEach(function (parser, index) {
