@@ -169,8 +169,8 @@ function walkDependencies(file, rules) {
     var map = { };
 
     var addDependency = function (dependency) {
-        if (!map[dependency.text]) {
-            map[dependency.text] = 1;
+        if (!map[dependency.raw]) {
+            map[dependency.raw] = 1;
             list.push(dependency);
         }
     };
