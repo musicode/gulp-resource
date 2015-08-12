@@ -603,7 +603,7 @@ Resource.prototype = {
                                 return;
                             }
 
-                            var resourceId = resolveResourceId(resource.id, module.id, config);
+                            var resourceId = resolveResourceId(resource.id, module.id);
 
                             dependencies.push({
                                 raw: resource.id,
