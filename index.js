@@ -71,31 +71,17 @@ var cssRules = [
 
 ];
 
+/**
+ * 计算 md5
+ *
+ * @inner
+ * @param {Buffer} buffer
+ * @return {string}
+ */
 function md5(buffer) {
     return crypto.createHash('md5').update(buffer).digest('hex').slice(0, 10);
 }
 
-
-function each(obj, fn) {
-    for (var key in obj) {
-        if (obj.hasOwnProperty(key)) {
-            fn(key, obj[key]);
-        }
-    }
-}
-
-function merge(source, target) {
-    each(target, function (key, value) {
-        source.push(value);
-    });
-}
-
-function extend(source, target) {
-    each(target, function (key, value) {
-        source[key] = value;
-    });
-    return source;
-}
 
 /**
  * 是否是绝对路径
@@ -143,21 +129,9 @@ function cleanQuery(url) {
  */
 function replaceByPattern(content, pattern, replacement) {
     return content.replace(
-        createPattern(pattern),
+        util.createPattern(pattern, 'g'),
         replacement
     );
-}
-
-/**
- * 创建一个正则表达式
- *
- * @inner
- * @param {string} pattern
- * @return {RegExp}
- */
-function createPattern(pattern) {
-    pattern = pattern.replace(/(\{|\}|\(|\)|\[|\]|\$|\.|\/|\?)/g, '\\$1');
-    return new RegExp(pattern, 'g');
 }
 
 /**
@@ -310,7 +284,7 @@ function renameDependencies(file, dependencies, rename) {
 
     });
 
-    each(group, function (text, dependencies) {
+    util.each(group, function (dependencies, text) {
 
         destContent = replaceByPattern(
             destContent,
@@ -343,7 +317,12 @@ function renameDependencies(file, dependencies, rename) {
 
 }
 
-
+/**
+ * 缓存递归计算结果
+ *
+ * @inner
+ * @type {Object}
+ */
 var recursiveHashCache = { };
 
 /**
@@ -367,13 +346,13 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
 
     var addDependency = function (dependency) {
         // 要避免循环依赖
-        if (!map[dependency]) {
+        if (!map[ dependency ]) {
 
-            map[dependency] = 1;
+            map[ dependency ] = 1;
 
             dependencies.push(dependency);
 
-            var childDependencies = dependencyMap[dependency];
+            var childDependencies = dependencyMap[ dependency ];
             if (Array.isArray(childDependencies)) {
                 childDependencies.forEach(addDependency);
             }
@@ -383,18 +362,33 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
 
     addDependency(dependency);
 
+    // 按字母表顺序排序，确保每次顺序一致
+    dependencies.sort(
+        function (a, b) {
+            if (a > b) {
+                return 1;
+            }
+            else if (a < b) {
+                return -1;
+            }
+            else {
+                return 0;
+            }
+        }
+    );
+
     var list = [ ];
 
     dependencies.forEach(
         function (dependency) {
 
-            var hash = hashMap[dependency];
+            var hash = hashMap[ dependency ];
             if (hash) {
                 list.push(hash);
             }
 
         }
-    )
+    );
 
     var hash;
 
@@ -431,13 +425,10 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
  */
 function Resource(options) {
 
-    extend(this, options);
+    util.extend(this, options);
 
-    this.htmlRules = options.htmlRules || [ ];
-    this.cssRules = options.cssRules || [ ];
-
-    merge(this.htmlRules, htmlRules);
-    merge(this.cssRules, cssRules);
+    this.htmlRules = util.merge(htmlRules, options.htmlRules);
+    this.cssRules = util.merge(cssRules, options.cssRules);
 
     this.hashMap = { };
     this.dependencyMap = { };
@@ -608,7 +599,7 @@ Resource.prototype = {
 
                         resources.forEach(function (resource) {
 
-                            if (util.keywords[resource.id]) {
+                            if (util.keywords[ resource.id ]) {
                                 return;
                             }
 
