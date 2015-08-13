@@ -33,7 +33,7 @@ var htmlRules = [
     },
 
     {
-        pattern: /src=['"](?:[^'"]+\.(?:js|jpg|jpeg|png|gif|ico|cur)(?:\?.+)?)['"]/gi,
+        pattern: /src=['"](?:[^'"]+\.(?:js|jpg|jpeg|png|gif|webp|ico|cur)(?:\?.+)?)['"]/gi,
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
@@ -48,25 +48,50 @@ var cssRules = [
 
     {
         pattern: /@import\s+['"](?:[^'")]+)['"]/gi,
-        match: function (result) {
+        match: function (result, file) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
-                return terms[1];
+
+                var result = terms[1];
+
+                if (path.extname(result) === '') {
+                    return {
+                        extname: path.extname(file.path),
+                        raw: result
+                    };
+                }
+                else {
+                    return result;
+                }
+
             }
         }
     },
 
     {
         pattern: /url\(['"]?(?:[^'")]+)['"]?\)/gi,
-        match: function (result) {
+        match: function (result, file) {
+
             var terms = result.split(/['"]/);
-            if (terms.length === 3) {
-                return terms[1];
-            }
-            else {
-                return result.split('(')[1].split(')')[0];
+            var result = terms.length === 3
+                       ? terms[1]
+                       : result.split('(')[1].split(')')[0];
+
+            if (!isAbsolute(result)) {
+
+                if (path.extname(result) === '') {
+                    return {
+                        extname: path.extname(file.path),
+                        raw: result
+                    };
+                }
+                else {
+                    return result;
+                }
+
             }
         }
+
     }
 
 ];
@@ -218,11 +243,24 @@ function walkDependencies(file, rules) {
                                  : raw;
                     }
 
+                    var extname = dependency.extname;
+                    if (extname && extname.length > 1) {
+
+                        var terms = absolute.split('.');
+                        terms.pop();
+                        terms.push(
+                            extname.substr(1)
+                        );
+
+                        absolute = terms.join('.');
+
+                    }
+
                     dependency.raw = cleanQuery(raw);
                     dependency.absolute = cleanQuery(absolute);
 
                     // 便于替换
-                    dependency.text = result;
+                    dependency.match = result;
 
                     addDependency(dependency);
 
@@ -255,7 +293,7 @@ function correctDependencies(file, dependencies, correct) {
     }
 
     for (var i = dependencies.length - 1; i >= 0; i--) {
-        correct(dependencies[i], file);
+        correct(file, dependencies[i]);
     }
 
 }
@@ -264,10 +302,11 @@ function correctDependencies(file, dependencies, correct) {
  * 过滤一些不需要的依赖，通常在 correctDependencies 之后处理
  *
  * @inner
+ * @param {Object} file
  * @param {Array} dependencies
  * @param {Function} filter 返回 true 表示需要过滤
  */
-function filterDependencies(dependencies, filter) {
+function filterDependencies(file, dependencies, filter) {
 
     for (var i = dependencies.length - 1; i >= 0; i--) {
 
@@ -275,7 +314,7 @@ function filterDependencies(dependencies, filter) {
 
         // 绝对路径不用处理
         if (isAbsolute(dependency.raw)
-            || (filter && filter(dependency))
+            || (filter && filter(file, dependency))
         ) {
             dependencies.splice(i, 1);
         }
@@ -297,25 +336,25 @@ function renameDependencies(file, dependencies, rename) {
     var srcContent = file.contents.toString();
     var destContent = srcContent;
 
-    // 按 text 分组
+    // 按 match 分组
     var group = { };
 
     dependencies.forEach(function (dependency) {
 
-        var list = group[dependency.text];
+        var list = group[dependency.match];
         if (!list) {
-            list = group[dependency.text] = [ ];
+            list = group[dependency.match] = [ ];
         }
 
         list.push(dependency);
 
     });
 
-    util.each(group, function (dependencies, text) {
+    util.each(group, function (dependencies, match) {
 
         destContent = replaceByPattern(
             destContent,
-            text,
+            match,
             function (result) {
 
                 dependencies.forEach(function (dependency) {
@@ -507,6 +546,7 @@ Resource.prototype = {
             );
 
             filterDependencies(
+                file,
                 dependencies,
                 me.filterDependency
             );
@@ -521,6 +561,7 @@ Resource.prototype = {
                     dependencies,
                     function (dependency) {
                         return options.rename(
+                            file,
                             dependency,
                             me.hashMap,
                             me.dependencyMap
@@ -559,6 +600,7 @@ Resource.prototype = {
             );
 
             filterDependencies(
+                file,
                 dependencies,
                 me.filterDependency
             );
@@ -574,6 +616,7 @@ Resource.prototype = {
                     dependencies,
                     function (dependency) {
                         return options.rename(
+                            file,
                             dependency,
                             me.hashMap,
                             me.dependencyMap
@@ -653,6 +696,7 @@ Resource.prototype = {
             );
 
             filterDependencies(
+                file,
                 dependencies,
                 me.filterDependency
             );
@@ -667,6 +711,7 @@ Resource.prototype = {
 
                 config.replaceRequireResource = function (raw, absolute) {
                     return options.rename(
+                        file,
                         {
                             raw: raw,
                             absolute: absolute
@@ -770,7 +815,7 @@ Resource.prototype = {
                 }
 
             },
-            rename: function (dependency) {
+            rename: function (file, dependency) {
 
                 var prefix = './';
 
@@ -782,6 +827,7 @@ Resource.prototype = {
                 }
 
                 var dependencyPath = me.renameDependency(
+                    file,
                     dependency,
                     getRecursiveHash(
                         dependency.absolute,
@@ -961,6 +1007,4 @@ Resource.prototype = {
 
 
 module.exports = Resource;
-
-
 
