@@ -845,11 +845,13 @@ Resource.prototype = {
                 iterator(file, me, {
                     process: function (file, dependencies) {
 
-                        me.dependencyMap[ file.path ] = dependencies.map(
-                            function (dependency) {
-                                return dependency.absolute;
-                            }
-                        );
+                        if (dependencies.length > 0) {
+                            me.dependencyMap[ file.path ] = dependencies.map(
+                                function (dependency) {
+                                    return dependency.absolute;
+                                }
+                            );
+                        }
 
                     }
                 });
