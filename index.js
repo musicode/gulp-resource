@@ -27,7 +27,7 @@ var htmlRules = [
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
-                return terms[1];
+                return terms[1].trim();
             }
         }
     },
@@ -37,7 +37,7 @@ var htmlRules = [
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
-                return terms[1];
+                return terms[1].trim();
             }
         }
     }
@@ -76,6 +76,10 @@ var cssRules = [
             var result = terms.length === 3
                        ? terms[1]
                        : result.split('(')[1].split(')')[0];
+
+            // background: url( ../images/a.png )
+            // 类似这种，还可以两边留空格，因此要 trim
+            result = result.trim();
 
             if (!isAbsolute(result)) {
 

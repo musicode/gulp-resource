@@ -1,6 +1,6 @@
 {
   "name": "gulp-resource",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "静态资源处理器",
   "main": "index.js",
   "scripts": {
