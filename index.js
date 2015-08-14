@@ -384,14 +384,6 @@ function renameDependencies(file, dependencies, rename) {
 }
 
 /**
- * 缓存递归计算结果
- *
- * @inner
- * @type {Object}
- */
-var recursiveHashCache = { };
-
-/**
  * 获取递归计算的 md5
  *
  * @inner
@@ -401,10 +393,6 @@ var recursiveHashCache = { };
  * @return {string}
  */
 function getRecursiveHash(dependency, hashMap, dependencyMap) {
-
-    if (recursiveHashCache[ dependency ]) {
-        return recursiveHashCache[ dependency ];
-    }
 
     // 递归分析出的完整的依赖列表
     var dependencies = [ ];
@@ -470,12 +458,243 @@ function getRecursiveHash(dependency, hashMap, dependencyMap) {
             break;
     }
 
-    recursiveHashCache[ dependency ] = hash;
-
     return hash;
 
 }
 
+/**
+ * 分析 html 文件依赖
+ *
+ * @inner
+ * @param {Object} file
+ * @param {Object} instance
+ * @param {Object} options
+ * @return {Object}
+ */
+function htmlDependencies(file, instance, options) {
+
+    var dependencies = walkDependencies(
+        file,
+        instance.htmlRules
+    );
+
+    correctDependencies(
+        file,
+        dependencies,
+        instance.correctDependency
+    );
+
+    filterDependencies(
+        file,
+        dependencies,
+        instance.filterDependency
+    );
+
+    if (options.process) {
+        options.process(file, dependencies);
+    }
+
+    if (options.rename) {
+        renameDependencies(
+            file,
+            dependencies,
+            function (dependency) {
+                return options.rename(
+                    file,
+                    dependency,
+                    instance.hashMap,
+                    instance.dependencyMap
+                );
+            }
+        );
+    }
+
+}
+
+
+/**
+ * 分析 css 文件依赖
+ *
+ * @inner
+ * @param {Object} file
+ * @param {Object} instance
+ * @param {Object} options
+ * @return {Object}
+ */
+function cssDependencies(file, instance, options) {
+
+    var dependencies = walkDependencies(
+        file,
+        instance.cssRules
+    );
+
+    correctDependencies(
+        file,
+        dependencies,
+        instance.correctDependency
+    );
+
+    filterDependencies(
+        file,
+        dependencies,
+        instance.filterDependency
+    );
+
+    if (options.process) {
+        options.process(file, dependencies);
+    }
+
+    if (options.rename) {
+
+        renameDependencies(
+            file,
+            dependencies,
+            function (dependency) {
+                return options.rename(
+                    file,
+                    dependency,
+                    instance.hashMap,
+                    instance.dependencyMap
+                );
+            }
+        );
+
+    }
+}
+
+
+/**
+ * 分析 amd 文件依赖
+ *
+ * @inner
+ * @param {Object} file
+ * @param {Object} instance
+ * @param {Object} options
+ * @return {Object}
+ */
+function amdDependencies(file, instance, options) {
+
+    var dependencies = [ ];
+
+    var config = instance.getAmdConfig(file.path);
+
+    var fileInfo = parseFile(
+        file.path,
+        file.contents.toString(),
+        config
+    );
+
+    fileInfo.modules.forEach(
+        function (module) {
+
+            var resources = parseFactoryResources(module.factory);
+
+            [
+                // 同步
+                module.dependencies,
+                // 异步
+                resources.async
+            ]
+            .forEach(function (resources) {
+
+                resources.forEach(function (resource) {
+
+                    if (util.keywords[ resource.id ]) {
+                        return;
+                    }
+
+                    var resourceId = resolveResourceId(resource.id, module.id);
+                    var filePath = resourceIdToFilePath(resourceId, config);
+
+                    if (filePath) {
+                        dependencies.push({
+                            raw: resource.id,
+                            absolute: filePath
+                        });
+                    }
+
+                });
+
+            });
+        }
+    );
+
+    correctDependencies(
+        file,
+        dependencies,
+        instance.correctDependency
+    );
+
+    filterDependencies(
+        file,
+        dependencies,
+        instance.filterDependency
+    );
+
+    if (options.process) {
+        options.process(file, dependencies);
+    }
+
+    if (options.rename) {
+
+        var replaceRequireResource = config.replaceRequireResource;
+
+        config.replaceRequireResource = function (raw, absolute) {
+            return options.rename(
+                file,
+                {
+                    raw: raw,
+                    absolute: absolute
+                },
+                instance.hashMap,
+                instance.dependencyMap
+            );
+        };
+
+        replaceResources(
+            fileInfo,
+            config
+        );
+
+        config.replaceRequireResource = replaceRequireResource;
+
+        file.contents = new Buffer(
+            generateFileCode(fileInfo)
+        );
+
+    }
+}
+
+/**
+ * 获取文件对应的遍历器
+ *
+ * @inner
+ * @param {string} filePath
+ * @return {Function?}
+ */
+function getIterator(filePath) {
+
+    var iterator;
+
+    switch (path.extname(filePath).toLowerCase()) {
+
+        case '.html':
+            iterator = htmlDependencies;
+            break;
+
+        case '.css':
+            iterator = cssDependencies;
+            break;
+
+        case '.js':
+            iterator = amdDependencies;
+            break;
+
+    }
+
+    return iterator;
+
+}
 
 /**
  *
@@ -534,41 +753,7 @@ Resource.prototype = {
 
         return es.map(function (file, callback) {
 
-            var dependencies = walkDependencies(
-                file,
-                me.htmlRules
-            );
-
-            correctDependencies(
-                file,
-                dependencies,
-                me.correctDependency
-            );
-
-            filterDependencies(
-                file,
-                dependencies,
-                me.filterDependency
-            );
-
-            if (options.process) {
-                options.process(file, dependencies);
-            }
-
-            if (options.rename) {
-                renameDependencies(
-                    file,
-                    dependencies,
-                    function (dependency) {
-                        return options.rename(
-                            file,
-                            dependency,
-                            me.hashMap,
-                            me.dependencyMap
-                        );
-                    }
-                );
-            }
+            htmlDependencies(file, me, options);
 
             callback(null, file);
 
@@ -588,43 +773,7 @@ Resource.prototype = {
 
         return es.map(function (file, callback) {
 
-            var dependencies = walkDependencies(
-                file,
-                me.cssRules
-            );
-
-            correctDependencies(
-                file,
-                dependencies,
-                me.correctDependency
-            );
-
-            filterDependencies(
-                file,
-                dependencies,
-                me.filterDependency
-            );
-
-            if (options.process) {
-                options.process(file, dependencies);
-            }
-
-            if (options.rename) {
-
-                renameDependencies(
-                    file,
-                    dependencies,
-                    function (dependency) {
-                        return options.rename(
-                            file,
-                            dependency,
-                            me.hashMap,
-                            me.dependencyMap
-                        );
-                    }
-                );
-
-            }
+            cssDependencies(file, me, options);
 
             callback(null, file);
 
@@ -644,95 +793,7 @@ Resource.prototype = {
 
         return es.map(function (file, callback) {
 
-            var dependencies = [ ];
-
-            var config = me.getAmdConfig(file.path);
-
-            var fileInfo = parseFile(
-                file.path,
-                file.contents.toString(),
-                config
-            );
-
-            fileInfo.modules.forEach(
-                function (module) {
-
-                    var resources = parseFactoryResources(module.factory);
-
-                    [
-                        // 同步
-                        module.dependencies,
-                        // 异步
-                        resources.async
-                    ]
-                    .forEach(function (resources) {
-
-                        resources.forEach(function (resource) {
-
-                            if (util.keywords[ resource.id ]) {
-                                return;
-                            }
-
-                            var resourceId = resolveResourceId(resource.id, module.id);
-                            var filePath = resourceIdToFilePath(resourceId, config);
-
-                            if (filePath) {
-                                dependencies.push({
-                                    raw: resource.id,
-                                    absolute: filePath
-                                });
-                            }
-
-                        });
-
-                    });
-                }
-            );
-
-            correctDependencies(
-                file,
-                dependencies,
-                me.correctDependency
-            );
-
-            filterDependencies(
-                file,
-                dependencies,
-                me.filterDependency
-            );
-
-            if (options.process) {
-                options.process(file, dependencies);
-            }
-
-            if (options.rename) {
-
-                var replaceRequireResource = config.replaceRequireResource;
-
-                config.replaceRequireResource = function (raw, absolute) {
-                    return options.rename(
-                        file,
-                        {
-                            raw: raw,
-                            absolute: absolute
-                        },
-                        me.hashMap,
-                        me.dependencyMap
-                    );
-                };
-
-                replaceResources(
-                    fileInfo,
-                    config
-                );
-
-                config.replaceRequireResource = replaceRequireResource;
-
-                file.contents = new Buffer(
-                    generateFileCode(fileInfo)
-                );
-
-            }
+            amdDependencies(file, me, options);
 
             callback(null, file);
 
@@ -771,23 +832,31 @@ Resource.prototype = {
      *
      * 只能分析 html css amd 三种文件
      *
-     * @param {Object} options
-     * @property {string} options.type
      */
-    analyzeFileDependencies: function (options) {
+    analyzeFileDependencies: function () {
 
         var me = this;
 
-        return me[ options.type + 'Dependencies' ]({
-            process: function (file, dependencies) {
+        return es.map(function (file, callback) {
 
-                me.dependencyMap[ file.path ] = dependencies.map(
-                    function (dependency) {
-                        return dependency.absolute;
+            var iterator = getIterator(file.path);
+
+            if (iterator) {
+                iterator(file, me, {
+                    process: function (file, dependencies) {
+
+                        me.dependencyMap[ file.path ] = dependencies.map(
+                            function (dependency) {
+                                return dependency.absolute;
+                            }
+                        );
+
                     }
-                );
-
+                });
             }
+
+            callback(null, file);
+
         });
 
     },
@@ -803,46 +872,56 @@ Resource.prototype = {
 
         var me = this;
 
-        return me[ options.type + 'Dependencies' ]({
-            process: function (file, dependencies) {
+        return es.map(function (file, callback) {
 
-                if (options.customReplace) {
-                    var srcContent = file.contents.toString();
-                    var destContent = options.customReplace(srcContent, file);
-                    if (destContent && destContent !== srcContent) {
-                        file.contents = new Buffer(destContent);
+            var iterator = getIterator(file.path);
+
+            if (iterator) {
+                iterator(file, me, {
+                    process: function (file, dependencies) {
+
+                        if (options.customReplace) {
+                            var srcContent = file.contents.toString();
+                            var destContent = options.customReplace(file, srcContent);
+                            if (destContent && destContent !== srcContent) {
+                                file.contents = new Buffer(destContent);
+                            }
+                        }
+
+                    },
+                    rename: function (file, dependency) {
+
+                        var prefix = './';
+
+                        // "./a.js" 重命名为 "./a_123.js"
+                        // 但是 path.join('.', 'a.js') 会变成 a.js
+
+                        if (dependency.raw.indexOf(prefix) !== 0) {
+                            prefix = '';
+                        }
+
+                        var dependencyPath = me.renameDependency(
+                            file,
+                            dependency,
+                            getRecursiveHash(
+                                dependency.absolute,
+                                me.hashMap,
+                                me.dependencyMap
+                            )
+                        );
+
+                        if (prefix && dependencyPath.indexOf(prefix) !== 0) {
+                            dependencyPath = prefix + dependencyPath;
+                        }
+
+                        return dependencyPath;
+
                     }
-                }
-
-            },
-            rename: function (file, dependency) {
-
-                var prefix = './';
-
-                // "./a.js" 重命名为 "./a_123.js"
-                // 但是 path.join('.', 'a.js') 会变成 a.js
-
-                if (dependency.raw.indexOf(prefix) !== 0) {
-                    prefix = '';
-                }
-
-                var dependencyPath = me.renameDependency(
-                    file,
-                    dependency,
-                    getRecursiveHash(
-                        dependency.absolute,
-                        me.hashMap,
-                        me.dependencyMap
-                    )
-                );
-
-                if (prefix && dependencyPath.indexOf(prefix) !== 0) {
-                    dependencyPath = prefix + dependencyPath;
-                }
-
-                return dependencyPath;
-
+                });
             }
+
+            callback(null, file);
+
         });
 
     },
@@ -878,15 +957,31 @@ Resource.prototype = {
 
         var me = this;
 
-        var hash = getRecursiveHash(
-            file.path,
-            me.hashMap,
-            me.dependencyMap
-        );
+        var hash = me.getFileHash(file);
 
         if (hash) {
             return me.renameFile(file, hash);
         }
+
+    },
+
+    /**
+     * 获得文件的哈希（递归哈希）
+     *
+     * @param {Object} file
+     * @param {Object=} hashMap
+     * @param {Object=} dependencyMap
+     * @return {string}
+     */
+    getFileHash: function (file, hashMap, dependencyMap) {
+
+        var me = this;
+
+        return getRecursiveHash(
+            file.path,
+            hashMap || me.hashMap,
+            dependencyMap || me.dependencyMap
+        );
 
     },
 
