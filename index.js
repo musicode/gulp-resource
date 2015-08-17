@@ -663,7 +663,7 @@ function amdDependencies(file, instance, options) {
         config.replaceRequireResource = replaceRequireResource;
 
         file.contents = new Buffer(
-            generateFileCode(fileInfo)
+            generateFileCode(fileInfo, config.minify)
         );
 
     }
