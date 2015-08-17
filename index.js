@@ -663,7 +663,7 @@ function amdDependencies(file, instance, options) {
         config.replaceRequireResource = replaceRequireResource;
 
         file.contents = new Buffer(
-            generateFileCode(fileInfo, config.minify)
+            generateFileCode(fileInfo)
         );
 
     }
@@ -722,6 +722,9 @@ function Resource(options) {
     this.hashMap = { };
     this.dependencyMap = { };
 
+    // 缓存递归 MD5
+    this.recursiveHashMap = { };
+
 }
 
 Resource.prototype = {
@@ -734,13 +737,15 @@ Resource.prototype = {
      * @param {Function} handler(file, callback)
      */
     custom: function (handler) {
+
+        var me = this;
+
         return es.map(function (file, callback) {
-            handler(
-                file,
-                function () {
-                    callback(null, file);
-                }
-            );
+
+            handler(file, function () {
+                callback(null, file);
+            });
+
         });
     },
 
@@ -755,13 +760,14 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             htmlDependencies(file, me, options);
 
-            callback(null, file);
+            callback();
 
         });
+
     },
 
     /**
@@ -775,11 +781,11 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             cssDependencies(file, me, options);
 
-            callback(null, file);
+            callback();
 
         });
     },
@@ -795,11 +801,11 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             amdDependencies(file, me, options);
 
-            callback(null, file);
+            callback();
 
         });
     },
@@ -811,7 +817,7 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             if (file.isBuffer()) {
 
@@ -825,7 +831,7 @@ Resource.prototype = {
 
             }
 
-            callback(null, file);
+            callback();
 
         });
 
@@ -841,7 +847,7 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             var iterator = getIterator(file.path);
 
@@ -861,7 +867,7 @@ Resource.prototype = {
                 });
             }
 
-            callback(null, file);
+            callback();
 
         });
 
@@ -878,7 +884,7 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             var iterator = getIterator(file.path);
 
@@ -926,7 +932,7 @@ Resource.prototype = {
                 });
             }
 
-            callback(null, file);
+            callback();
 
         });
 
@@ -939,7 +945,7 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             var hashFilePath = me.getHashFilePath(file);
 
@@ -947,7 +953,7 @@ Resource.prototype = {
                 file.path = hashFilePath;
             }
 
-            callback(null, file);
+            callback();
 
         });
 
@@ -963,7 +969,7 @@ Resource.prototype = {
 
         var me = this;
 
-        var hash = me.getFileHash(file);
+        var hash = me.getFileHash(file.path, me.hashMap, me.dependencyMap, true);
 
         if (hash) {
             return me.renameFile(file, hash);
@@ -974,20 +980,32 @@ Resource.prototype = {
     /**
      * 获得文件的哈希（递归哈希）
      *
-     * @param {Object} file
+     * @param {string} filePath
      * @param {Object=} hashMap
      * @param {Object=} dependencyMap
+     * @param {boolean=} cache 是否缓存，不缓存
      * @return {string}
      */
-    getFileHash: function (file, hashMap, dependencyMap) {
+    getFileHash: function (filePath, hashMap, dependencyMap, cache) {
 
         var me = this;
+        var recursiveHashMap = me.recursiveHashMap;
 
-        return getRecursiveHash(
-            file.path,
-            hashMap || me.hashMap,
-            dependencyMap || me.dependencyMap
-        );
+        var hash = recursiveHashMap[ filePath ];
+
+        if (!cache || typeof hash !== 'string') {
+            hash = getRecursiveHash(
+                filePath,
+                hashMap,
+                dependencyMap
+            );
+        }
+
+        if (cache) {
+            recursiveHashMap[ filePath ] = hash;
+        }
+
+        return hash;
 
     },
 
@@ -998,7 +1016,7 @@ Resource.prototype = {
 
         var me = this;
 
-        return es.map(function (file, callback) {
+        return me.custom(function (file, callback) {
 
             amdDeploy({
                 file: file.path,
@@ -1007,7 +1025,7 @@ Resource.prototype = {
                 callback: function (code) {
 
                     file.contents = new Buffer(code);
-                    callback(null, file);
+                    callback();
 
                 }
             });
