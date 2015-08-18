@@ -682,11 +682,10 @@ function getIterator(filePath) {
 
     switch (path.extname(filePath).toLowerCase()) {
 
-        case '.html':
-            iterator = htmlDependencies;
-            break;
-
         case '.css':
+        case '.less':
+        case '.styl':
+        case '.sass':
             iterator = cssDependencies;
             break;
 
@@ -694,6 +693,11 @@ function getIterator(filePath) {
             iterator = amdDependencies;
             break;
 
+    }
+
+    // 鉴于模板扩展名太多就不 switch 了
+    if (!iterator) {
+        iterator = htmlDependencies;
     }
 
     return iterator;
