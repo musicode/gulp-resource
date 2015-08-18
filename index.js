@@ -23,7 +23,7 @@ var util = require('amd-deploy/lib/util');
 var htmlRules = [
 
     {
-        pattern: /href=['"](?:[^'"]+\.(?:css|less|styl)(?:\?.+)?)['"]/gi,
+        pattern: /href=['"](?:[^'"]+\.(?:ico|css|less|styl)(?:\?.+)?)['"]/gi,
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
