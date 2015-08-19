@@ -23,7 +23,7 @@ var util = require('amd-deploy/lib/util');
 var htmlRules = [
 
     {
-        pattern: /href=['"](?:[^'"]+\.(?:ico|css|less|styl)(?:\?.+)?)['"]/gi,
+        pattern: /href=['"](?:[^'"]+\.(?:ico|css|less|styl|sass)(?:\?.+)?)['"]/gi,
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
@@ -828,10 +828,8 @@ Resource.prototype = {
                 var filePath = file.path;
                 var hash = me.hashMap[ filePath ];
 
-                if (!hash) {
-                    hash = md5(file.contents);
-                    me.hashMap[ filePath ] = hash;
-                }
+                hash = md5(file.contents);
+                me.hashMap[ filePath ] = hash;
 
             }
 
