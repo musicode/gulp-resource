@@ -1,6 +1,6 @@
 {
   "name": "gulp-resource",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "静态资源处理器",
   "main": "index.js",
   "scripts": {
@@ -24,6 +24,6 @@
   "homepage": "https://github.com/musicode/gulp-resource",
   "dependencies": {
     "event-stream": "^3.3.1",
-    "amd-deploy": "^1.0.20"
+    "amd-deploy": "^1.0.21"
   }
 }
