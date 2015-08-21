@@ -176,8 +176,8 @@ function createPattern(pattern, decorate) {
     pattern = pattern.replace(/(\{|\}|\(|\)|\[|\]|\$|\.|\/|\?)/g, '\\$1');
 
     return decorate
-         ? new RegExp(pattern)
-         : new RegExp(pattern, decorate);
+         ? new RegExp(pattern, decorate)
+         : new RegExp(pattern);
 
 }
 
