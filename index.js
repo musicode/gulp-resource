@@ -597,7 +597,9 @@ function amdDependencies(file, instance, options) {
                 // 同步
                 module.dependencies,
                 // 异步
-                resources.async
+                resources.async,
+                // 其他资源，如 toUrl('../../a.png')
+                resources.other
             ]
             .forEach(function (resources) {
 
