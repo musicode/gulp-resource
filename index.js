@@ -27,7 +27,7 @@ var htmlRules = [
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
-                return terms[1].trim();
+                return terms[1];
             }
         }
     },
@@ -37,7 +37,7 @@ var htmlRules = [
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
-                return terms[1].trim();
+                return terms[1];
             }
         }
     }
@@ -73,15 +73,20 @@ var cssRules = [
         match: function (result, file) {
 
             var terms = result.split(/['"]/);
-            var result = terms.length === 3
-                       ? terms[1]
-                       : result.split('(')[1].split(')')[0];
+            var result;
 
-            // background: url( ../images/a.png )
-            // 类似这种，还可以两边留空格，因此要 trim
-            result = result.trim();
+            if (terms.length === 3) {
+                result = terms[1];
+            }
+            else {
+                result = result.split('(')[1].split(')')[0];
 
-            if (!isAbsolute(result)) {
+                // background: url( ../img/a.png )
+                // 类似这种，两边可以有空白符，因此要 trim
+                result = result.trim();
+            }
+
+            if (result) {
 
                 if (path.extname(result) === '') {
                     return {
@@ -108,7 +113,8 @@ var cssRules = [
  * @return {string}
  */
 function md5(buffer) {
-    return crypto.createHash('md5').update(buffer).digest('hex').slice(0, 10);
+    var hash = crypto.createHash('md5');
+    return hash.update(buffer).digest('hex').slice(0, 10);
 }
 
 
@@ -263,7 +269,7 @@ function walkDependencies(file, rules) {
                     dependency.raw = cleanQuery(raw);
                     dependency.absolute = cleanQuery(absolute);
 
-                    // 便于替换
+                    // 便于替换回去
                     dependency.match = result;
 
                     addDependency(dependency);
@@ -345,9 +351,9 @@ function renameDependencies(file, dependencies, rename) {
 
     dependencies.forEach(function (dependency) {
 
-        var list = group[dependency.match];
+        var list = group[ dependency.match ];
         if (!list) {
-            list = group[dependency.match] = [ ];
+            list = group[ dependency.match ] = [ ];
         }
 
         list.push(dependency);
@@ -881,10 +887,9 @@ Resource.prototype = {
      * 替换依赖
      *
      * @param {Object} options
-     * @property {string} options.type
-     * @property {Function} options.customReplace
+     * @property {Function} options.replace
      */
-    replaceFileDependencies: function (options) {
+    renameFileDependencies: function (options) {
 
         var me = this;
 
@@ -896,9 +901,9 @@ Resource.prototype = {
                 iterator(file, me, {
                     process: function (file, dependencies) {
 
-                        if (options.customReplace) {
+                        if (options.replace) {
                             var srcContent = file.contents.toString();
-                            var destContent = options.customReplace(file, srcContent);
+                            var destContent = options.replace(file, srcContent);
                             if (destContent && destContent !== srcContent) {
                                 file.contents = new Buffer(destContent);
                             }
