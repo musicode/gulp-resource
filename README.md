@@ -19,7 +19,7 @@ var resource = new Resource({
         // 对于 gulp 来说，路径不一样意味着生成一个新文件
     },
 
-    renameDependency: function (file, dependency, hash) {
+    renameDependency: function (file, fileHash, dependency, dependencyHash) {
         // 返回 string，改写 file 中的依赖路径
         // 注意：使用 dependency.raw
     },
@@ -34,7 +34,6 @@ var resource = new Resource({
         // 那么依赖的绝对路径可以纠正为
         // dependency.absolute = projectDir + 'src/a.js'
     },
-
 
     htmlRules: [
         {
@@ -63,28 +62,36 @@ var resource = new Resource({
 }
 ```
 
-## 分析文件的 md5（生成 hashMap）
+## 分析文件的 md5
+
+用于生成 hashMap
 
 ```
-resource.analyzeFileHash();
+resource.analyzeHash();
 ```
 
-## 分析文件的依赖（生成 dependencyMap）
+## 分析文件的依赖
+
+用于生成 dependencyMap
 
 ```
-resource.analyzeFileDependencies();
+resource.analyzeDependencies();
 ```
 
-## 生成带 md5 信息的文件（根据 md5 递归计算结果修改文件名，替换规则通过 renameFile 配置）
+## 生成带 md5 信息的文件
+
+根据 md5 递归计算结果修改文件名，替换规则通过 renameFile 配置
 
 ```
 resource.renameFiles();
 ```
 
-## 替换文件中的依赖（根据 md5 递归计算结果修改依赖，替换规则通过 renameDependency 配置）
+## 替换文件中的依赖
+
+根据 md5 递归计算结果修改依赖，替换规则通过 renameDependency 配置
 
 ```
-resource.renameFileDependencies();
+resource.renameDependencies();
 ```
 
 ## 编译 amd

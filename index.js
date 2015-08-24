@@ -671,7 +671,7 @@ function amdDependencies(file, instance, options) {
         config.replaceRequireResource = replaceRequireResource;
 
         file.contents = new Buffer(
-            generateFileCode(fileInfo)
+            generateFileCode(fileInfo, config.minify)
         );
 
     }
@@ -681,14 +681,26 @@ function amdDependencies(file, instance, options) {
  * 获取文件对应的遍历器
  *
  * @inner
- * @param {string} filePath
+ * @param {Object} file
  * @return {Function?}
  */
-function getIterator(filePath) {
+function getIterator(file) {
 
     var iterator;
 
-    switch (path.extname(filePath).toLowerCase()) {
+    switch (path.extname(file.path).toLowerCase()) {
+
+        // 其实用 .html 和 .tpl 就行了
+        // 非要用太奇葩的扩展名，就自己蛋疼去吧
+        case '.html':
+        case '.tpl':
+        case '.hbs':
+        case '.ejs':
+        case '.volt':
+        case '.twig':
+        case '.phtml':
+            iterator = htmlDependencies;
+            break;
 
         case '.css':
         case '.less':
@@ -701,11 +713,6 @@ function getIterator(filePath) {
             iterator = amdDependencies;
             break;
 
-    }
-
-    // 鉴于模板扩展名太多就不 switch 了
-    if (!iterator) {
-        iterator = htmlDependencies;
     }
 
     return iterator;
@@ -754,9 +761,16 @@ Resource.prototype = {
 
         return es.map(function (file, callback) {
 
-            handler(file, function () {
+            var done = function () {
                 callback(null, file);
-            });
+            };
+
+            if (file.contents) {
+                handler(file, done);
+            }
+            else {
+                done();
+            }
 
         });
     },
@@ -824,14 +838,18 @@ Resource.prototype = {
 
     /**
      * 分析文件的 hash
+     *
+     * @param {Object} options
+     * @property {Function=} options.filter 文件过滤
      */
-    analyzeFileHash: function () {
+    analyzeHash: function (options) {
 
         var me = this;
+        var filter = options && options.filter;
 
         return me.custom(function (file, callback) {
 
-            if (file.isBuffer()) {
+            if (!filter || !filter(file)) {
 
                 var filePath = file.path;
                 var hash = me.hashMap[ filePath ];
@@ -852,29 +870,35 @@ Resource.prototype = {
      *
      * 只能分析 html css amd 三种文件
      *
+     * @param {Object} options
+     * @property {Function=} options.filter 文件过滤
      */
-    analyzeFileDependencies: function () {
+    analyzeDependencies: function (options) {
 
         var me = this;
+        var filter = options && options.filter;
 
         return me.custom(function (file, callback) {
 
-            var iterator = getIterator(file.path);
+            if (!filter || !filter(file)) {
 
-            if (iterator) {
-                iterator(file, me, {
-                    process: function (file, dependencies) {
+                var iterator = getIterator(file);
 
-                        if (dependencies.length > 0) {
-                            me.dependencyMap[ file.path ] = dependencies.map(
-                                function (dependency) {
-                                    return dependency.absolute;
-                                }
-                            );
+                if (iterator) {
+                    iterator(file, me, {
+                        process: function (file, dependencies) {
+
+                            if (dependencies.length > 0) {
+                                me.dependencyMap[ file.path ] = dependencies.map(
+                                    function (dependency) {
+                                        return dependency.absolute;
+                                    }
+                                );
+                            }
+
                         }
-
-                    }
-                });
+                    });
+                }
             }
 
             callback();
@@ -887,58 +911,80 @@ Resource.prototype = {
      * 替换依赖
      *
      * @param {Object} options
-     * @property {Function} options.replace
+     * @property {Function=} options.filter
+     * @property {Function=} options.replace
      */
-    renameFileDependencies: function (options) {
+    renameDependencies: function (options) {
 
         var me = this;
 
+        var filter;
+        var replace;
+
+        if (options) {
+            filter = options.filter;
+            replace = options.replace;
+        }
+
         return me.custom(function (file, callback) {
 
-            var iterator = getIterator(file.path);
+            if (!filter || !filter(file)) {
 
-            if (iterator) {
-                iterator(file, me, {
-                    process: function (file, dependencies) {
+                var iterator = getIterator(file);
 
-                        if (options.replace) {
-                            var srcContent = file.contents.toString();
-                            var destContent = options.replace(file, srcContent);
-                            if (destContent && destContent !== srcContent) {
-                                file.contents = new Buffer(destContent);
+                if (iterator) {
+                    iterator(file, me, {
+                        process: function (file, dependencies) {
+
+                            if (replace) {
+                                var srcContent = file.contents.toString();
+                                var destContent = replace(file, srcContent);
+                                if (destContent && destContent !== srcContent) {
+                                    file.contents = new Buffer(destContent);
+                                }
                             }
+
+                        },
+                        rename: function (file, dependency) {
+
+                            var prefix = './';
+
+                            // "./a.js" 重命名为 "./a_123.js"
+                            // 但是 path.join('.', 'a.js') 会变成 a.js
+
+                            if (dependency.raw.indexOf(prefix) !== 0) {
+                                prefix = '';
+                            }
+
+                            var dependencyPath = me.renameDependency(
+
+                                file,
+                                me.getFileHash(
+                                    file.path,
+                                    me.hashMap,
+                                    me.dependencyMap,
+                                    true
+                                ),
+
+                                dependency,
+                                me.getFileHash(
+                                    dependency.absolute,
+                                    me.hashMap,
+                                    me.dependencyMap,
+                                    true
+                                )
+
+                            );
+
+                            if (prefix && dependencyPath.indexOf(prefix) !== 0) {
+                                dependencyPath = prefix + dependencyPath;
+                            }
+
+                            return dependencyPath;
+
                         }
-
-                    },
-                    rename: function (file, dependency) {
-
-                        var prefix = './';
-
-                        // "./a.js" 重命名为 "./a_123.js"
-                        // 但是 path.join('.', 'a.js') 会变成 a.js
-
-                        if (dependency.raw.indexOf(prefix) !== 0) {
-                            prefix = '';
-                        }
-
-                        var dependencyPath = me.renameDependency(
-                            file,
-                            dependency,
-                            getRecursiveHash(
-                                dependency.absolute,
-                                me.hashMap,
-                                me.dependencyMap
-                            )
-                        );
-
-                        if (prefix && dependencyPath.indexOf(prefix) !== 0) {
-                            dependencyPath = prefix + dependencyPath;
-                        }
-
-                        return dependencyPath;
-
-                    }
-                });
+                    });
+                }
             }
 
             callback();
@@ -949,17 +995,31 @@ Resource.prototype = {
 
     /**
      * 生成文件名带有哈希值的文件
+     *
+     * @param {Object} options
+     * @property {Function=} options.filter
      */
-    renameFiles: function () {
+    renameFiles: function (options) {
 
         var me = this;
+        var filter = options && options.filter;
 
         return me.custom(function (file, callback) {
 
-            var hashFilePath = me.getHashFilePath(file);
+            if (!filter || !filter(file)) {
 
-            if (hashFilePath) {
-                file.path = hashFilePath;
+                var hash = me.getFileHash(
+                    file.path,
+                    me.hashMap,
+                    me.dependencyMap,
+                    true
+                );
+
+                var filePath = me.renameFile(file, hash);
+                if (filePath) {
+                    file.path = filePath;
+                }
+
             }
 
             callback();
@@ -969,30 +1029,12 @@ Resource.prototype = {
     },
 
     /**
-     * 获得哈希后的文件路径
-     *
-     * @param {Object} file
-     * @return {string}
-     */
-    getHashFilePath: function (file) {
-
-        var me = this;
-
-        var hash = me.getFileHash(file.path, me.hashMap, me.dependencyMap, true);
-
-        if (hash) {
-            return me.renameFile(file, hash);
-        }
-
-    },
-
-    /**
      * 获得文件的哈希（递归哈希）
      *
      * @param {string} filePath
      * @param {Object=} hashMap
      * @param {Object=} dependencyMap
-     * @param {boolean=} cache 是否缓存，不缓存
+     * @param {boolean=} cache 是否缓存，默认不缓存
      * @return {string}
      */
     getFileHash: function (filePath, hashMap, dependencyMap, cache) {
@@ -1002,7 +1044,7 @@ Resource.prototype = {
 
         var hash = recursiveHashMap[ filePath ];
 
-        if (!cache || typeof hash !== 'string') {
+        if (!cache || !hash) {
             hash = getRecursiveHash(
                 filePath,
                 hashMap,
