@@ -1004,20 +1004,33 @@ Resource.prototype = {
         var me = this;
         var filter = options && options.filter;
 
+        var hashMap = me.hashMap;
+        var dependencyMap = me.dependencyMap;
+
         return me.custom(function (file, callback) {
 
             if (!filter || !filter(file)) {
 
                 var hash = me.getFileHash(
                     file.path,
-                    me.hashMap,
-                    me.dependencyMap,
+                    hashMap,
+                    dependencyMap,
                     true
                 );
 
                 var filePath = me.renameFile(file, hash);
                 if (filePath) {
+
+                    if (hashMap[ file.path ]) {
+                        hashMap[ filePath ] = hashMap[ file.path ];
+                    }
+
+                    if (dependencyMap[ file.path ]) {
+                        dependencyMap[ filePath ] = dependencyMap[ file.path ];
+                    }
+
                     file.path = filePath;
+
                 }
 
             }
