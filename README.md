@@ -7,8 +7,8 @@
 ```
 var resource = new Resource({
 
-    getAmdConfig: function (filePath) {
-        // 根据 filePath 返回不同的 amd config
+    getAmdConfig: function (file) {
+        // 根据 file 返回不同的 amd config
         // 至少要有 baseUrl，paths 和 packages 看需求
         // 比如 project/src/ 和 project/output/asset/ 配置的 baseUrl 肯定不一样
     },

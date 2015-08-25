@@ -287,6 +287,29 @@ function walkDependencies(file, rules) {
 }
 
 /**
+ * 依赖去重
+ *
+ * @inner
+ * @param {Array} dependencies
+ * @return {Array}
+ */
+function uniqueDependencies(dependencies) {
+
+    var result = [ ];
+    var map = { };
+
+    dependencies.forEach(function (dependency) {
+        if (!map[ dependency.absolute ]) {
+            result.push(dependency);
+            map[ dependency.absolute ] = 1;
+        }
+    });
+
+    return result;
+
+}
+
+/**
  * 纠正依赖的格式
  *
  * 开发时通常会约定一些不通用的路径，如 ${staticServer}/src/a.js，编译时需要处理
@@ -586,7 +609,7 @@ function amdDependencies(file, instance, options) {
 
     var dependencies = [ ];
 
-    var config = instance.getAmdConfig(file.path);
+    var config = instance.getAmdConfig(file);
 
     var fileInfo = parseFile(
         file.path,
@@ -724,7 +747,7 @@ function getIterator(file) {
  * @param {Object} options
  * @property {Array} options.htmlRules
  * @property {Array} options.cssRules
- * @property {Function} options.getAmdConfig 获取 AMD 配置，会传入当前处理的文件路径
+ * @property {Function} options.getAmdConfig 获取 AMD 配置，会传入当前处理的文件对象
  * @property {Function} options.renameFile 重命名文件，比如加上 md5
  * @property {Function} options.renameDependency 重命名依赖，比如加上 md5
  * @property {Function=} options.filterDependency 过滤非法依赖，比如 src/img/${a}.jpg
@@ -889,7 +912,7 @@ Resource.prototype = {
                         process: function (file, dependencies) {
 
                             if (dependencies.length > 0) {
-                                me.dependencyMap[ file.path ] = dependencies.map(
+                                me.dependencyMap[ file.path ] = uniqueDependencies(dependencies).map(
                                     function (dependency) {
                                         return dependency.absolute;
                                     }
@@ -917,6 +940,9 @@ Resource.prototype = {
     renameDependencies: function (options) {
 
         var me = this;
+
+        var hashMap = me.hashMap;
+        var dependencyMap = me.dependencyMap;
 
         var filter;
         var replace;
@@ -961,16 +987,16 @@ Resource.prototype = {
                                 file,
                                 me.getFileHash(
                                     file.path,
-                                    me.hashMap,
-                                    me.dependencyMap,
+                                    hashMap,
+                                    dependencyMap,
                                     true
                                 ),
 
                                 dependency,
                                 me.getFileHash(
                                     dependency.absolute,
-                                    me.hashMap,
-                                    me.dependencyMap,
+                                    hashMap,
+                                    dependencyMap,
                                     true
                                 )
 
@@ -1020,17 +1046,7 @@ Resource.prototype = {
 
                 var filePath = me.renameFile(file, hash);
                 if (filePath) {
-
-                    if (hashMap[ file.path ]) {
-                        hashMap[ filePath ] = hashMap[ file.path ];
-                    }
-
-                    if (dependencyMap[ file.path ]) {
-                        dependencyMap[ filePath ] = dependencyMap[ file.path ];
-                    }
-
                     file.path = filePath;
-
                 }
 
             }
@@ -1085,7 +1101,7 @@ Resource.prototype = {
             amdDeploy({
                 file: file.path,
                 content: file.contents.toString(),
-                config: me.getAmdConfig(file.path),
+                config: me.getAmdConfig(file),
                 callback: function (code) {
 
                     file.contents = new Buffer(code);
@@ -1101,12 +1117,12 @@ Resource.prototype = {
     /**
      * 解析 amd 依赖
      *
-     * @param {string} filePath 文件路径
+     * @param {Object} file 文件
      * @param {string} match 文件中匹配到的原始字符串
      * @param {string} literal 从 match 中抽离出的符合 id 规则的字面量
      * @return {Array.<string>}
      */
-    parseAmdDependencies: function (filePath, match, literal) {
+    parseAmdDependencies: function (file, match, literal) {
 
         // literal 可能是 'moduleId'、'[ "module1", "module2" ]'、xxx（非法 js 变量）
 
@@ -1136,7 +1152,7 @@ Resource.prototype = {
         }
 
         var me = this;
-        var config = me.getAmdConfig(filePath);
+        var config = me.getAmdConfig(file);
 
         var result = [ ];
 
@@ -1169,19 +1185,6 @@ Resource.prototype = {
      */
     parseAmdConfig: function (content) {
         return readRequireConfig(content);
-    },
-
-    /**
-     * 文件路径转为资源 ID
-     *
-     * @param {string} filePath
-     * @return {string}
-     */
-    filePathToResourceId: function (filePath) {
-        return filePathToResourceId(
-            filePath,
-            this.getAmdConfig(filePath)
-        )[0];
     }
 
 };
