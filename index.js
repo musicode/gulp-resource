@@ -174,15 +174,15 @@ function replaceByPattern(content, pattern, replacement) {
  *
  * @inner
  * @param {string} pattern
- * @param {string} decorate
+ * @param {string} flags
  * @return {RegExp}
  */
-function createPattern(pattern, decorate) {
+function createPattern(pattern, flags) {
 
-    pattern = pattern.replace(/(\{|\}|\(|\)|\[|\]|\$|\.|\/|\?)/g, '\\$1');
+    pattern = pattern.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
 
-    return decorate
-         ? new RegExp(pattern, decorate)
+    return flags
+         ? new RegExp(pattern, flags)
          : new RegExp(pattern);
 
 }
@@ -674,11 +674,11 @@ function amdDependencies(file, instance, options) {
 
         var replaceRequireResource = config.replaceRequireResource;
 
-        config.replaceRequireResource = function (raw, absolute) {
+        config.replaceRequireResource = function (resource, absolute) {
             return options.rename(
                 file,
                 {
-                    raw: raw,
+                    raw: resource.id,
                     absolute: absolute
                 },
                 instance.hashMap,
@@ -1185,11 +1185,31 @@ Resource.prototype = {
      */
     parseAmdConfig: function (content) {
         return readRequireConfig(content);
+    },
+
+    /**
+     * 资源 id 转为文件路径
+     *
+     * @param {string} resourceId
+     * @param {Object} config
+     * @return {string}
+     */
+    resourceIdToFilePath: function (resourceId, config) {
+        return resourceIdToFilePath(resourceId, config);
+    },
+
+    /**
+     * 文件路径转为资源 id
+     *
+     * @param {string} resourceId
+     * @param {Object} config
+     * @return {string}
+     */
+    filePathToResourceId: function (filePath, config) {
+        return filePathToResourceId(filePath, config)[0];
     }
 
 };
-
-
 
 
 module.exports = Resource;
