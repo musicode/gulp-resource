@@ -33,7 +33,7 @@ var htmlRules = [
     },
 
     {
-        pattern: /src=['"](?:[^'"]+\.(?:js|jpg|jpeg|png|gif|webp|ico|cur)(?:\?.+)?)['"]/gi,
+        pattern: /src=['"][^'"]+['"]/gi,
         match: function (result) {
             var terms = result.split(/['"]/);
             if (terms.length === 3) {
